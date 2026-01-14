@@ -101,33 +101,36 @@ app.patch('/add-water/:userName', async (req, res) => {
   }
 });
 
-// 4. Atualizar Foto de Perfil (Versão Blindada)
+// 4. Atualizar Foto de Perfil (Versão Anti-Espaço Fantasma)
 app.patch('/update-profile/:userName', async (req, res) => {
   try {
-    // 1. Decodifica o nome (Jo%C3%A3o -> João)
-    const userName = decodeURIComponent(req.params.userName);
+    const rawName = decodeURIComponent(req.params.userName);
+    // Removemos espaços extras da URL também por garantia
+    const userName = rawName.trim(); 
     const { profilePictureURL } = req.body;
     
-    // Log para a gente ver na Vercel se funcionou
-    console.log(`Tentando atualizar foto de: ${userName}`);
+    // 🕵️‍♂️ LOG DE ESPIÃO: Mostra o tamanho exato (se for diferente, tem caracter oculto)
+    console.log(`Buscando: "${userName}" (Tamanho: ${userName.length})`);
 
     const query = `
       UPDATE users 
       SET profile_picture_url = $1
-      WHERE user_name = $2
+      WHERE TRIM(user_name) = $2  -- Aqui está a mágica do TRIM
       RETURNING id, user_name, profile_picture_url;
     `;
     
     const result = await pool.query(query, [profilePictureURL, userName]);
     
     if (result.rowCount === 0) {
-      console.log("Usuário não encontrado no DB");
+      console.log(`❌ ERRO: Usuário "${userName}" não achado no banco.`);
       return res.status(404).send("Usuário não encontrado");
     }
     
+    console.log("✅ SUCESSO: Foto atualizada!");
     res.json({ message: "Foto atualizada!", user: result.rows[0] });
+
   } catch (err) {
-    console.error("Erro no update:", err);
+    console.error("Erro CRÍTICO:", err);
     res.status(500).json({ error: err.message });
   }
 });
