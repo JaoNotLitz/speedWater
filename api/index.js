@@ -7,11 +7,14 @@ const app = express();
 app.use(express.json());
 
 // Configuração da conexão com o Supabase
+const { Pool } = require('pg');
+
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
-  ssl: { rejectUnauthorized: false }
+  ssl: {
+    rejectUnauthorized: false // Importante para o Supabase não barrar a Vercel
+  }
 });
-
 // 1. Criar Usuário
 app.post('/signup', async (req, res) => {
   const { userName, profilePictureURL, password, recoveryEmail } = req.body;
