@@ -13,6 +13,7 @@ const pool = new Pool({
     rejectUnauthorized: false // Importante para o Supabase não barrar a Vercel
   }
 });
+
 // 1. Criar Usuário
 app.post('/signup', async (req, res) => {
   const { userName, profilePictureURL, password, recoveryEmail } = req.body;
@@ -91,5 +92,13 @@ app.get('/scoreboard', async (req, res) => {
   }
 });
 
-const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => console.log(`Servidor rodando na porta ${PORT}`));
+// Exporta o app para a Vercel (Serverless)
+module.exports = app;
+
+// Inicia o servidor apenas se o arquivo for executado diretamente (Desenvolvimento Local)
+if (require.main === module) {
+  const PORT = process.env.PORT || 3000;
+  app.listen(PORT, () => {
+    console.log(`Servidor rodando na porta ${PORT}`);
+  });
+}
