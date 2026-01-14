@@ -101,12 +101,16 @@ app.patch('/add-water/:userName', async (req, res) => {
   }
 });
 
-// 4. Atualizar Foto de Perfil (Integração Cloudinary)
+// 4. Atualizar Foto de Perfil (Versão Blindada)
 app.patch('/update-profile/:userName', async (req, res) => {
-  const { userName } = req.params;
-  const { profilePictureURL } = req.body;
-  
   try {
+    // 1. Decodifica o nome (Jo%C3%A3o -> João)
+    const userName = decodeURIComponent(req.params.userName);
+    const { profilePictureURL } = req.body;
+    
+    // Log para a gente ver na Vercel se funcionou
+    console.log(`Tentando atualizar foto de: ${userName}`);
+
     const query = `
       UPDATE users 
       SET profile_picture_url = $1
@@ -116,10 +120,14 @@ app.patch('/update-profile/:userName', async (req, res) => {
     
     const result = await pool.query(query, [profilePictureURL, userName]);
     
-    if (result.rowCount === 0) return res.status(404).send("Usuário não encontrado");
+    if (result.rowCount === 0) {
+      console.log("Usuário não encontrado no DB");
+      return res.status(404).send("Usuário não encontrado");
+    }
     
     res.json({ message: "Foto atualizada!", user: result.rows[0] });
   } catch (err) {
+    console.error("Erro no update:", err);
     res.status(500).json({ error: err.message });
   }
 });
