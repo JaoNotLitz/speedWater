@@ -149,25 +149,33 @@ app.get('/scoreboard', async (req, res) => {
   }
 });
 
-// 6. Zerar Dia (CRON Job)
-app.post('/reset-daily', async (req, res) => {
+// 6. CRON Job Unificado (Substitui os antigos 6 e 7)
+// Rota GET para facilitar teste no navegador e uso no Vercel Cron
+app.get('/cron-reset', async (req, res) => {
   try {
+    // 1. Zera o Dia (Sempre acontece)
     await pool.query('UPDATE users SET daily_water = 0');
-    res.json({ message: "Daily water resetado para todos!" });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
+    let logMessage = "Daily resetado com sucesso.";
 
-// 7. Zerar Semana (CRON Job)
-app.post('/reset-week', async (req, res) => {
-  try {
-    await pool.query('UPDATE users SET week_water = 0');
-    res.json({ message: "Week water resetado para todos!" });
+    // 2. Verifica se é Domingo para zerar a semana
+    // O Cron roda às 03:00 UTC (00:00 Brasil).
+    // getDay(): 0 = Domingo, 1 = Segunda...
+    const today = new Date();
+    const dayOfWeek = today.getDay();
+
+    if (dayOfWeek === 0) { // Se for Domingo
+      await pool.query('UPDATE users SET week_water = 0');
+      logMessage += " E semana resetada (Domingo).";
+    }
+
+    console.log(`CRON EXECUTADO: ${logMessage}`);
+    res.json({ success: true, message: logMessage });
+
   } catch (err) {
+    console.error("Erro no CRON:", err);
     res.status(500).json({ error: err.message });
   }
-});
+}); 
 
 // Exporta o app para a Vercel
 module.exports = app;
