@@ -7,8 +7,6 @@ const app = express();
 app.use(express.json());
 
 // Configuração da conexão com o Supabase
-const { Pool } = require('pg');
-
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
   ssl: {
