@@ -1,12 +1,16 @@
 const express = require('express');
 const { Pool } = require('pg');
 const bcrypt = require('bcryptjs');
+const cors = require('cors'); // Importando o CORS
 require('dotenv').config();
 
 const app = express();
+
+// Configurações Globais
+app.use(cors()); // Libera acesso para o Front-end
 app.use(express.json());
 
-// Configuração da conexão com o Supabase
+// Configuração da conexão com o Supabase (Pooler)
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
   ssl: {
@@ -14,7 +18,7 @@ const pool = new Pool({
   }
 });
 
-// 1. Criar Usuário
+// 1. Criar Usuário (Sign Up)
 app.post('/signup', async (req, res) => {
   const { userName, profilePictureURL, password, recoveryEmail } = req.body;
   
@@ -34,10 +38,49 @@ app.post('/signup', async (req, res) => {
   }
 });
 
-// 2. dailyAdder - Adicionar água
+// 2. Login (Entrar no sistema)
+app.post('/login', async (req, res) => {
+  const { userName, password } = req.body;
+
+  try {
+    // Busca o usuário
+    const query = 'SELECT * FROM users WHERE user_name = $1';
+    const result = await pool.query(query, [userName]);
+
+    if (result.rowCount === 0) {
+      return res.status(400).json({ error: "Usuário não encontrado" });
+    }
+
+    const user = result.rows[0];
+
+    // Verifica a senha
+    const validPassword = await bcrypt.compare(password, user.password);
+    if (!validPassword) {
+      return res.status(400).json({ error: "Senha incorreta" });
+    }
+
+    // Retorna dados seguros (sem a senha)
+    res.json({
+      message: "Login realizado!",
+      user: {
+        id: user.id,
+        userName: user.user_name,
+        profilePictureURL: user.profile_picture_url,
+        dailyWater: user.daily_water,
+        weekWater: user.week_water,
+        totalWater: user.total_water
+      }
+    });
+
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// 3. Adicionar Água
 app.patch('/add-water/:userName', async (req, res) => {
   const { userName } = req.params;
-  const { amount } = req.body; // valor inteiro de água
+  const { amount } = req.body; // Ex: 250
   
   try {
     const query = `
@@ -58,27 +101,30 @@ app.patch('/add-water/:userName', async (req, res) => {
   }
 });
 
-// 3. dailyReset - Zerar dia (Para o CRON Job)
-app.post('/reset-daily', async (req, res) => {
+// 4. Atualizar Foto de Perfil (Integração Cloudinary)
+app.patch('/update-profile/:userName', async (req, res) => {
+  const { userName } = req.params;
+  const { profilePictureURL } = req.body;
+  
   try {
-    await pool.query('UPDATE users SET daily_water = 0');
-    res.json({ message: "Daily water resetado para todos!" });
+    const query = `
+      UPDATE users 
+      SET profile_picture_url = $1
+      WHERE user_name = $2
+      RETURNING id, user_name, profile_picture_url;
+    `;
+    
+    const result = await pool.query(query, [profilePictureURL, userName]);
+    
+    if (result.rowCount === 0) return res.status(404).send("Usuário não encontrado");
+    
+    res.json({ message: "Foto atualizada!", user: result.rows[0] });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
 });
 
-// 4. weekReset - Zerar semana (Para o CRON Job)
-app.post('/reset-week', async (req, res) => {
-  try {
-    await pool.query('UPDATE users SET week_water = 0');
-    res.json({ message: "Week water resetado para todos!" });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
-
-// 5. getAllUsersWater - Placar de líderes
+// 5. Placar de Líderes (Scoreboard)
 app.get('/scoreboard', async (req, res) => {
   try {
     const result = await pool.query(`
@@ -92,10 +138,30 @@ app.get('/scoreboard', async (req, res) => {
   }
 });
 
-// Exporta o app para a Vercel (Serverless)
+// 6. Zerar Dia (CRON Job)
+app.post('/reset-daily', async (req, res) => {
+  try {
+    await pool.query('UPDATE users SET daily_water = 0');
+    res.json({ message: "Daily water resetado para todos!" });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// 7. Zerar Semana (CRON Job)
+app.post('/reset-week', async (req, res) => {
+  try {
+    await pool.query('UPDATE users SET week_water = 0');
+    res.json({ message: "Week water resetado para todos!" });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Exporta o app para a Vercel
 module.exports = app;
 
-// Inicia o servidor apenas se o arquivo for executado diretamente (Desenvolvimento Local)
+// Servidor Local
 if (require.main === module) {
   const PORT = process.env.PORT || 3000;
   app.listen(PORT, () => {
